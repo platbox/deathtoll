@@ -1,0 +1,9 @@
+ebin
+deps
+erl_crash.dump
+.eunit
+logs
+priv/*.config
+priv/badtokens
+priv/*.pem
+*.sublime-workspace

@@ -1,0 +1,10 @@
+{
+    "folders":
+    [
+        {
+            "path": "/Users/keynslug/workspace/deathtoll",
+            "folder_exclude_patterns": [".eunit", "logs", "deps/*/test"],
+            "file_exclude_patterns": ["*.beam", "*.app", ".tags*"]
+        }
+    ]
+}

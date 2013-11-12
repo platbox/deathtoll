@@ -1,0 +1,12 @@
+{application, deathtoll, [
+    {description, "Monitoring and downtime alerting tool"},
+    {vsn, "0.1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        sasl
+    ]},
+    {mod, {deathtoll_app, []}},
+    {env, []}
+]}.
