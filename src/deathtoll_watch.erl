@@ -41,7 +41,7 @@ start_link(Ref, Options) ->
     AuditSup = deepprops:require(sup, Options),
     Alarmists = deepprops:require(alarms, Options),
     [Interval, MaxSeq, MaxAlarms] = deepprops:values([
-        {interval, 600}, {max_seq, 3}, {max_alarms, 5}],
+        {interval, 60}, {max_seq, 3}, {max_alarms, 5}],
         Options
     ),
     IntervalDown = deepprops:get(interval_down, Options, Interval),
