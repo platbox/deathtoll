@@ -29,7 +29,7 @@ config:
 	cp -nv priv/app.example.config priv/app.config
 
 start:
-	exec erl +K true -pa ebin deps/*/ebin -boot start_sasl -config priv/app.config -s lager -s $(APP)
+	exec erl +K true -pa ebin deps/*/ebin -boot start_sasl -config priv/app.config -s $(APP)
 
 test:
 	mkdir -p .eunit
