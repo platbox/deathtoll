@@ -31,6 +31,8 @@
     max_alarms :: pos_integer()
 }).
 
+-define(EXPBASE, 4).
+
 %%
 
 -spec start_link(deathtoll:cref(), deathtoll:options()) -> {ok, pid()} | {error, any()}.
@@ -42,7 +44,7 @@ start_link(Ref, Options) ->
         {interval, 600}, {max_seq, 3}, {max_alarms, 5}],
         Options
     ),
-    IntervalDown = deepprops:get(interval_down, Options, Interval div 2),
+    IntervalDown = deepprops:get(interval_down, Options, Interval),
     gen_server:start_link(?MODULE, #state{
         ref = Ref,
         alarm = {up, []},
@@ -148,7 +150,7 @@ join_alarm({down, Extra0}, {up, _WasExtra}, #state{max_seq = MaxSeq}) ->
 join_alarm({down, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq, max_alarms = MaxN}) ->
     [N, Seq0, Since] = deepprops:values([n, seq, since], WasExtra),
     Seq = Seq0 + 1,
-    TriggerSeq = MaxSeq + trunc(math:pow(2, N)) - 1,
+    TriggerSeq = MaxSeq + trunc(math:pow(?EXPBASE, N)) - 1,
     Extra = [{seq, Seq}, {since, Since} | Extra0],
     if
         Seq >= TriggerSeq andalso N < MaxN ->
