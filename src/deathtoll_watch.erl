@@ -135,8 +135,14 @@ handle_audit(Error, State = #state{ref = Ref, audit = undefined}) ->
 join_alarm({up, Extra}, {up, _WasExtra}, _State) ->
     {ok, {up, Extra}};
 
-join_alarm({up, Extra}, {down, _WasExtra}, _State) ->
-    {trigger, {up, Extra}};
+join_alarm({up, Extra}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
+    Seq = deepprops:get(seq, WasExtra, 0),
+    if
+        Seq >= MaxSeq ->
+            {trigger, {up, Extra}};
+        true ->
+            {ok, {up, Extra}}
+    end;
 
 join_alarm({down, Extra0}, {up, _WasExtra}, #state{max_seq = MaxSeq}) ->
     Extra = [{seq, 1}, {since, calendar:universal_time()} | Extra0],
