@@ -31,6 +31,8 @@ format_alarm(Ref, {down, E}, _WasAlarm) ->
 format_alarm(Ref, {up, _E}, _WasAlarm) ->
     format("Seems that ~p went back online, cheers!", [format_ref(Ref)]).
 
+-spec format_ref(deathtoll:cref()) -> string().
+
 format_ref(Ref) ->
     format_title(format("~p", [Ref])).
 
