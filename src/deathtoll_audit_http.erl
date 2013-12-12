@@ -56,16 +56,30 @@ start(_Ref, #state{url = Url, body = Body, ctype = CType, expect = Expect, timeo
         true ->
             {post, {Url, Headers, CType, Body}}
     end,
-    {alarm, case httpc:request(Method, Request, HttpOptions, Options) of
-        {ok, _} when Expect =:= ok ->
-            {up, []};
-        {ok, {StatusCode, _}} when Expect =:= {status, StatusCode} ->
-            {up, []};
-        {ok, {StatusCode, Body}} ->
+    {alarm, expected(httpc:request(Method, Request, HttpOptions, Options), Expect)}.
+
+expected({ok, _}, ok) ->
+    {up, []};
+
+expected({ok, {StatusCode, _}}, {status, StatusCode}) ->
+    {up, []};
+
+expected({ok, {StatusCode, _}}, {status, StatusCode}) ->
+    {up, []};
+
+expected({ok, {StatusCode, Body}}, {response, StatusCode, BodyMatch}) ->
+    case binary:match(Body, iolist_to_binary([BodyMatch])) of
+        nomatch ->
             {down, [{status, StatusCode}, {body, Body}]};
-        {error, Reason} ->
-            {down, [{error, Reason}]}
-    end}.
+        _ ->
+            {up, []}
+    end;
+
+expected({ok, {StatusCode, Body}}, _) ->
+    {down, [{status, StatusCode}, {body, Body}]};
+
+expected(Error = {error, _}, _) ->
+    {down, [Error]}.
 
 -spec terminate(deathtoll:cref(), state()) -> ok.
 
