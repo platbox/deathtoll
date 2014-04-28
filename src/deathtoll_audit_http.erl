@@ -16,9 +16,22 @@
     url     :: string(),
     body    :: iodata(),
     ctype   :: string(),
-    expect  :: ok | {status, 200..399},
+    expect  :: expectance(),
     timeout :: pos_integer()
 }).
+
+-type expectance() ::
+    ok |
+    {status, 200..399} |
+    {response, 200..399, iodata()} |
+    {json, 200..399, binary(), [jsonkey()], predicate()}.
+
+-type jsonkey() :: binary().
+-type jsonvalue() :: null | binary() | boolean() | number() | [jsonvalue()] | jsonobject().
+-type jsonobject() :: {[{jsonkey(), jsonvalue()}]}.
+
+-type predicate() :: jsonvalue() | {contains, iodata()} | {compares, [{comparer(), jsonvalue()}]}.
+-type comparer() :: '<' | '>' | '>=' | '=<' | '==' | '/='.
 
 -type state() :: #state{}.
 
@@ -75,6 +88,21 @@ expected({ok, {StatusCode, Body}}, {response, StatusCode, BodyMatch}) ->
             {up, []}
     end;
 
+expected({ok, {StatusCode, Body}}, {json, StatusCode, Title, JsonPath, Pred}) ->
+    try
+        Json = jiffy:decode(Body),
+        Value = get_json_value(JsonPath, Json),
+        _ = run_predicate(Pred, Value),
+        {up, []}
+    catch
+        throw:{error, {_, _}} ->
+            {down, [{what, Title}, {why, <<"No json">>}]};
+        throw:badpath ->
+            {down, [{what, Title}, {why, <<"No json value at path">>}]};
+        throw:{failed, Why, ActualValue} ->
+            {down, [{what, Title}, {why, Why}, {value, ActualValue}]}
+    end;
+
 expected({ok, {StatusCode, Body}}, _) ->
     {down, [{status, StatusCode}, {body, Body}]};
 
@@ -85,3 +113,46 @@ expected(Error = {error, _}, _) ->
 
 terminate(_Ref, _State) ->
     ok.
+
+%%
+
+get_json_value([], Value) ->
+    Value;
+
+get_json_value([Key | Rest], {Props}) when is_list(Props) ->
+    case lists:keyfind(Key, Props) of
+        {_, Value} ->
+            get_json_value(Rest, Value);
+        false ->
+            throw(badpath)
+    end;
+
+get_json_value(_Path, _Value) ->
+    throw(badpath).
+
+run_predicate({contains, Subject}, Value) ->
+    Result = binary:match(Value, iolist_to_binary([Subject])),
+    run_predicate_result(Result, <<"No match">>, Value);
+
+run_predicate({compares, Comparers}, Value) ->
+    Result = lists:all(fun (C) -> compare(C, Value) end, Comparers),
+    run_predicate_result(Result, <<"Conditions not hold">>, Value);
+
+run_predicate(Expect, Value) ->
+    run_predicate_result(Expect =:= Value, <<"Mismatch">>, Value).
+
+run_predicate_result(true, _Desc, _Value) ->
+    ok;
+
+run_predicate_result(false, Desc, Value) ->
+    throw({failed, Desc, to_binary(Value)}).
+
+compare({Comparer, Bound}, Value) ->
+    try erlang:Comparer(Value, Bound) catch
+        _:_ -> throw({failed, <<"Invalid predicate">>, Value})
+    end.
+
+to_binary(V) when is_binary(V)  -> V;
+to_binary(V) when is_list(V)    -> iolist_to_binary(V);
+to_binary(V) when is_integer(V) -> integer_to_binary(V);
+to_binary(V) when is_float(V)   -> float_to_binary(V).
