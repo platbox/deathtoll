@@ -132,7 +132,7 @@ get_json_value(_Path, _Value) ->
 
 run_predicate({contains, Subject}, Value) ->
     Result = binary:match(Value, iolist_to_binary([Subject])),
-    run_predicate_result(Result, <<"No match">>, Value);
+    run_predicate_result(Result =/= nomatch, <<"No match">>, Value);
 
 run_predicate({compares, Comparers}, Value) ->
     Result = lists:all(fun (C) -> compare(C, Value) end, Comparers),
