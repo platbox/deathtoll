@@ -43,7 +43,7 @@ format_what(Extra) ->
     iolist_to_binary([
         Why,
         case What of undefined -> []; _ -> [" for ", What] end,
-        case Value of undefined -> []; _ -> [", it is ", Value] end,
+        case Value of undefined -> []; _ -> [", it's ", Value] end,
         "."
     ]).
 
