@@ -54,7 +54,7 @@ format_title(String) ->
     String.
 
 format_datetime({_, {H, M, S}}) ->
-    format("~2..0B:~2..0B:~2..0BZ", [H, M, S]).
+    format("~2..0B:~2..0B:~2..0BUTC", [H, M, S]).
 
 format(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).
