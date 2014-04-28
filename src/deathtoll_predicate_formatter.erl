@@ -22,10 +22,10 @@ format_alarm(Ref, {down, E}, _WasAlarm) ->
     Title = format_ref(Ref),
     Since = format_since(" at ", E),
     Description = format_what(E),
-    format("Our ~p gone bad~s. ~s", [Title, Since, Description]);
+    format("~p gone bad~s. ~s", [Title, Since, Description]);
 
 format_alarm(Ref, {up, _E}, _WasAlarm) ->
-    format("Our ~p is healthy again, cheers!", [format_ref(Ref)]).
+    format("~p is healthy again, cheers!", [format_ref(Ref)]).
 
 -spec format_ref(deathtoll:cref()) -> string().
 
@@ -54,7 +54,7 @@ format_title(String) ->
     String.
 
 format_datetime({_, {H, M, S}}) ->
-    format("~2..0B:~2..0B:~2..0B UTC", [H, M, S]).
+    format("~2..0B:~2..0B:~2..0BZ", [H, M, S]).
 
 format(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).
