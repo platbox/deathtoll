@@ -120,7 +120,7 @@ get_json_value([], Value) ->
     Value;
 
 get_json_value([Key | Rest], {Props}) when is_list(Props) ->
-    case lists:keyfind(Key, Props) of
+    case lists:keyfind(Key, 1, Props) of
         {_, Value} ->
             get_json_value(Rest, Value);
         false ->
