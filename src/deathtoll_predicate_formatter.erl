@@ -39,7 +39,7 @@ format_since(Pre, Extra) ->
     end.
 
 format_what(Extra) ->
-    [What, Why, Value] = deepprops:values([what, {why, <<"Banana">>}, value], Extra),
+    [What, Why, Value] = deepprops:values([what, {why, <<"Wrong response">>}, value], Extra),
     iolist_to_binary([
         Why,
         case What of undefined -> []; _ -> [" for ", What] end,
