@@ -22,10 +22,10 @@ format_alarm(Ref, {down, E}, _WasAlarm) ->
     Title = format_ref(Ref),
     Since = format_since(" at ", E),
     Description = format_what(E),
-    format("~p gone bad~s. ~s", [Title, Since, Description]);
+    format("~s gone bad~s. ~s", [Title, Since, Description]);
 
 format_alarm(Ref, {up, _E}, _WasAlarm) ->
-    format("~p is healthy again, cheers!", [format_ref(Ref)]).
+    format("~s is healthy again, cheers!", [format_ref(Ref)]).
 
 -spec format_ref(deathtoll:cref()) -> string().
 
