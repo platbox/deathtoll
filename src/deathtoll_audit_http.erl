@@ -77,9 +77,6 @@ expected({ok, _}, ok) ->
 expected({ok, {StatusCode, _}}, {status, StatusCode}) ->
     {up, []};
 
-expected({ok, {StatusCode, _}}, {status, StatusCode}) ->
-    {up, []};
-
 expected({ok, {StatusCode, Body}}, {response, StatusCode, BodyMatch}) ->
     case binary:match(Body, iolist_to_binary([BodyMatch])) of
         nomatch ->
