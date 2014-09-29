@@ -33,18 +33,16 @@ There are two ways:
 
 ```erlang
 deathtoll:watch(
-  watch,
+  google,
   [
-      {google, [
-          {auditor, {deathtoll_audit_http, [
-              {url, "https://www.google.ru/"},
-              {expect, {status, 200}}
-          ]}},
-          {alarms, [
-              {deathtoll_alarm_logger, []}
-          ]},
-          {interval, 8}
-      ]}
+      {auditor, {deathtoll_audit_http, [
+          {url, "https://www.google.ru/"},
+          {expect, {status, 200}}
+      ]}},
+      {alarms, [
+          {deathtoll_alarm_logger, []}
+      ]},
+      {interval, 8}
   ]
 ).
 ```
