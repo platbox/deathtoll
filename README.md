@@ -56,6 +56,6 @@ What’s the thing
 
 Every ’watch’ is a combination of an auditor, up to a few alarmists each of which could provide means to set a formatter. Moreover, every ’watch’ is hell of a supervior.
 
-There is a couple of options you, as a proud user, could pass to each component. Sad to say, there are yet to be documented. Meanwhile you could consult a couple of modules, there are specs all over.
+There is a couple of options you, as a proud user, could pass to each component. Sad to say, they are yet to be documented. Meanwhile you could consult a couple of modules, there are specs all over.
 
 
