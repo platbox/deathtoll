@@ -15,10 +15,10 @@
 
 start_link(Options) ->
     try
-        AuditSupSpec = get_audit_sup_spec(Options),
         {ok, SupPid} = supervisor:start_link(?MODULE, watch_sup),
+        AuditSupSpec = get_audit_sup_spec(Options),
         {ok, AuditSupPid} = supervisor:start_child(SupPid, AuditSupSpec),
-        WatchSpec = get_watch_spec([{sup, AuditSupPid} | Options]),
+        WatchSpec = get_watch_spec(Options#{sup => AuditSupPid}),
         {ok, _WatchPid} = supervisor:start_child(SupPid, WatchSpec),
         {ok, SupPid}
     catch
@@ -31,14 +31,14 @@ start_link(Options) ->
     end.
 
 get_audit_sup_spec(Options) ->
-    Ref = deepprops:require(ref, Options),
-    {Mod, Opts} = deepprops:require(auditor, Options),
+    Ref = maps:get(ref, Options),
+    {Mod, Opts} = maps:get(auditor, Options),
     {ok, State} = Mod:init(Ref, Opts),
     Entry = {supervisor, start_link, [?MODULE, {audit_sup, Mod, State}]},
-    {audit_sup, Entry, permanent, infinity, supervisor, [?MODULE]}.
+    {audit_sup, Entry, permanent, infinity, supervisor, [?MODULE, Mod]}.
 
 get_watch_spec(Options) ->
-    Ref = deepprops:require(ref, Options),
+    Ref = maps:get(ref, Options),
     Entry = {deathtoll_watch, start_link, [Ref, Options]},
     {watch, Entry, permanent, 10000, worker, [deathtoll_watch]}.
 

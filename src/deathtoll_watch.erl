@@ -38,13 +38,13 @@
 -spec start_link(deathtoll:cref(), deathtoll:options()) -> {ok, pid()} | {error, any()}.
 
 start_link(Ref, Options) ->
-    AuditSup = deepprops:require(sup, Options),
-    Alarmists = deepprops:require(alarms, Options),
-    [Interval, MaxSeq, MaxAlarms] = deepprops:values([
-        {interval, 60}, {max_seq, 3}, {max_alarms, 5}],
+    AuditSup = maps:get(sup, Options),
+    Alarmists = maps:get(alarms, Options),
+    [Interval, MaxSeq, MaxAlarms] = genlib_map:mget(
+        [{interval, 60}, {max_seq, 3}, {max_alarms, 5}],
         Options
     ),
-    IntervalDown = deepprops:get(interval_down, Options, Interval),
+    IntervalDown = maps:get(interval_down, Options, Interval),
     gen_server:start_link(?MODULE, #state{
         ref = Ref,
         alarm = {up, []},
@@ -136,7 +136,7 @@ join_alarm({up, Extra}, {up, _WasExtra}, _State) ->
     {ok, {up, Extra}};
 
 join_alarm({up, Extra}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
-    Seq = deepprops:get(seq, WasExtra, 0),
+    Seq = maps:get(seq, WasExtra, 0),
     if
         Seq >= MaxSeq ->
             {trigger, {up, Extra}};
@@ -145,22 +145,22 @@ join_alarm({up, Extra}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
     end;
 
 join_alarm({down, Extra0}, {up, _WasExtra}, #state{max_seq = MaxSeq}) ->
-    Extra = [{seq, 1}, {since, calendar:universal_time()} | Extra0],
+    Extra = Extra0#{seq => 1, since => calendar:universal_time()},
     if
         MaxSeq =:= 1 ->
-            {trigger, {down, [{n, 1} | Extra]}};
+            {trigger, {down, Extra#{n => 1}}};
         true ->
-            {ok, {down, [{n, 0} | Extra]}}
+            {ok, {down, Extra#{n => 0}}}
     end;
 
 join_alarm({down, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq, max_alarms = MaxN}) ->
-    [N, Seq0, Since] = deepprops:values([n, seq, since], WasExtra),
+    #{n := N, seq := Seq0, since := Since} = WasExtra,
     Seq = Seq0 + 1,
     TriggerSeq = MaxSeq + trunc(math:pow(?EXPBASE, N)) - 1,
-    Extra = [{seq, Seq}, {since, Since} | Extra0],
+    Extra = Extra0#{seq => Seq, since => Since},
     if
         Seq >= TriggerSeq andalso N < MaxN ->
-            {trigger, {down, [{n, N + 1} | Extra]}};
+            {trigger, {down, Extra#{n => N + 1}}};
         true ->
-            {ok, {down, [{n, N} | Extra]}}
+            {ok, {down, Extra#{n => N}}}
     end.

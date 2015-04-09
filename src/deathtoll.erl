@@ -10,7 +10,7 @@
 
 -type cref() :: any().
 -type alarm() :: {down | up, options()}.
--type options() :: [atom() | {atom(), any()}].
+-type options() :: #{atom() => any()}.
 
 -export_type([
     cref/0,

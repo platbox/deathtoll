@@ -15,7 +15,7 @@
 -spec init(deathtoll:cref(), deathtoll:options()) -> {ok, state()}.
 
 init(_Ref, Options) ->
-    {ok, {undefined, deepprops:get(formatter, Options, deathtoll_formatter)}}.
+    {ok, {undefined, maps:get(formatter, Options, deathtoll_formatter)}}.
 
 -spec alarm(deathtoll:cref(), deathtoll:alarm(), state()) -> {ok, state()}.
 

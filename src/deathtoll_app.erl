@@ -26,7 +26,8 @@
 -spec start_app(atom()) -> ok.
 
 start_app(App) ->
-    do_start(App).
+    {ok, _} = application:ensure_all_started(App, permanent),
+    ok.
 
 -spec stop_app(atom()) -> ok | {error, term()}.
 
@@ -75,27 +76,9 @@ stop_child(Ref) ->
     Specs :: list(supervisor:child_spec()).
 
 init([]) ->
-    Watches = deepprops:get(watch, application:get_all_env(), []),
+    Watches = genlib_opts:get(watch, application:get_all_env(), []),
     {ok, {{one_for_one, 6, 30}, [get_child_spec(Ref, Options) || {Ref, Options} <- Watches]}}.
 
 get_child_spec(Ref, Options) ->
-    {Ref, {deathtoll_watch_sup, start_link, [[{ref, Ref} | Options]]},
+    {Ref, {deathtoll_watch_sup, start_link, [Options#{ref => Ref}]},
         permanent, infinity, supervisor, [deathtoll_watch_sup]}.
-
-%%
-
-do_start(App) ->
-    do_start(App, application:start(App, permanent)).
-
-do_start(_, ok) ->
-    ok;
-
-do_start(_, {error, {already_started, _App}}) ->
-    ok;
-
-do_start(App, {error, {not_started, Dep}}) when App =/= Dep ->
-    ok = do_start(Dep),
-    do_start(App);
-
-do_start(App, {error, Reason}) ->
-    erlang:error({app_startup_failed, App, Reason}).

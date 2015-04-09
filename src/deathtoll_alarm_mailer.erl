@@ -28,8 +28,9 @@
 
 -spec init(deathtoll:cref(), deathtoll:options()) -> {ok, state()}.
 
-init(_Ref, Options) ->
-    {[From, To, Me, Formatter], SmtpOptions} = deepprops:split([from, to, {me, "Deathtoll"}, {formatter, deathtoll_formatter}], Options),
+init(_Ref, Options = #{from := From, to := To, smtp := SmtpOptions}) ->
+    Me = maps:get(me, Options, "Deathtoll"),
+    Formatter = maps:get(formatter, Options, deathtoll_formatter),
     _ = is_email(From) orelse error({badarg, From}),
     _ = lists:all(fun is_email/1, To) orelse error({badarg, To}),
     State = #state{
@@ -42,9 +43,11 @@ init(_Ref, Options) ->
 
 -spec alarm(deathtoll:cref(), deathtoll:alarm(), state()) -> {ok, state()}.
 
-alarm(Ref, Alarm, State = #state{from = {From, Me}, to = To, opts = Options, alarm = WasAlarm, formatter = Formatter}) ->
+alarm(Ref, Alarm, State = #state{from = {From, Me}, to = To, opts = Options, alarm = WasAlarm}) ->
+    Formatter = State#state.formatter,
     Text = Formatter:format_alarm(Ref, Alarm, WasAlarm),
-    Body = "Subject: " ++ Formatter:format_ref(Ref) ++ "\r\n"
+    Body =
+        "Subject: " ++ Formatter:format_ref(Ref) ++ "\r\n"
         "From: " ++ Me ++ "\r\n\r\n" ++ Text,
     EMail = {From, To, Body},
     _Pid = gen_smtp_client:send(EMail, Options, fun report/1),

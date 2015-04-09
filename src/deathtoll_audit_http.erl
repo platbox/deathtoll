@@ -28,7 +28,7 @@
 
 -type jsonkey() :: binary().
 -type jsonvalue() :: null | binary() | boolean() | number() | [jsonvalue()] | jsonobject().
--type jsonobject() :: {[{jsonkey(), jsonvalue()}]}.
+-type jsonobject() :: #{jsonkey() => jsonvalue()}.
 
 -type predicate() :: jsonvalue() | {contains, iodata()} | {compares, [{comparer(), jsonvalue()}]}.
 -type comparer() :: '<' | '>' | '>=' | '=<' | '==' | '/='.
@@ -38,73 +38,88 @@
 -spec init(deathtoll:cref(), deathtoll:options()) -> {ok, state()}.
 
 init(_Ref, Options) ->
-    ok = deathtoll_app:start_app(ssl),
-    ok = deathtoll_app:start_app(inets),
+    _ = genlib_app:start_application(hackney),
     {ok, #state{
-        url = deepprops:require(url, Options),
-        body = deepprops:get(body, Options, <<>>),
-        ctype = deepprops:get(content_type, Options, "text/plain"),
-        expect = deepprops:get(expect, Options, {status, 200}),
-        timeout = deepprops:get(timeout, Options, 10000)
+        url = maps:get(url, Options),
+        body = maps:get(body, Options, <<>>),
+        ctype = maps:get(content_type, Options, undefined),
+        expect = maps:get(expect, Options, {status, 200}),
+        timeout = maps:get(timeout, Options, 10000)
     }}.
 
 -spec start(deathtoll:cref(), state()) -> {alarm, deathtoll:alarm()}.
 
 start(_Ref, #state{url = Url, body = Body, ctype = CType, expect = Expect, timeout = Timeout}) ->
-    Headers = [
-        {"Accept", "*/*"}
-    ],
-    HttpOptions = [
-        {timeout, Timeout},
-        {connect_timeout, Timeout},
-        {relaxed, true}
-    ],
-    Options = [
-        {body_format, binary},
-        {full_result, false}
-    ],
-    {Method, Request} = if
-        Body =:= <<>>; Body =:= "" ->
-            {get, {Url, Headers}};
-        true ->
-            {post, {Url, Headers, CType, Body}}
-    end,
-    {alarm, expected(httpc:request(Method, Request, HttpOptions, Options), Expect)}.
-
-expected({ok, _}, ok) ->
-    {up, []};
-
-expected({ok, {StatusCode, _}}, {status, StatusCode}) ->
-    {up, []};
-
-expected({ok, {StatusCode, Body}}, {response, StatusCode, BodyMatch}) ->
-    case binary:match(Body, iolist_to_binary([BodyMatch])) of
-        nomatch ->
-            {down, [{status, StatusCode}, {body, Body}]};
+    Headers0 = [{<<"accept">>, <<"*/*">>}],
+    Headers1 = case CType of
+        undefined ->
+            Headers0;
         _ ->
-            {up, []}
-    end;
+            [{<<"content-type">>, CType} | Headers0]
+    end,
+    Options = [
+        {timeout, Timeout},
+        {connect_timeout, Timeout}
+    ],
+    Result = if
+        Body =:= <<>>; Body =:= "" ->
+            assert(hackney:get(Url, Headers0, <<>>, Options), Expect);
+        true ->
+            assert(hackney:post(Url, Headers1, Body, Options), Expect)
+    end,
+    {alarm, Result}.
 
-expected({ok, {StatusCode, Body}}, {json, StatusCode, Title, JsonPath, Pred}) ->
-    try
-        Json = jiffy:decode(Body),
-        Value = get_json_value(JsonPath, Json),
-        _ = run_predicate(Pred, Value),
-        {up, []}
-    catch
-        throw:{error, {_, _}} ->
-            {down, [{what, Title}, {why, <<"No json">>}]};
-        throw:badpath ->
-            {down, [{what, Title}, {why, <<"No json value at path">>}]};
-        throw:{failed, Why, ActualValue} ->
-            {down, [{what, Title}, {why, Why}, {value, ActualValue}]}
-    end;
+assert({ok, _, _, _}, ok) ->
+    {up, #{}};
 
-expected({ok, {StatusCode, Body}}, _) ->
-    {down, [{status, StatusCode}, {body, Body}]};
+assert({ok, StatusCode, _, _}, {status, StatusCode}) ->
+    {up, #{}};
 
-expected(Error = {error, _}, _) ->
-    {down, [Error]}.
+assert({ok, StatusCode, _, CRef}, {response, StatusCode, BodyMatch}) ->
+    expect_body(CRef, fun (Body) ->
+        case binary:match(Body, iolist_to_binary(BodyMatch)) of
+            nomatch ->
+                {down, #{status => StatusCode, body => Body}};
+            _ ->
+                {up, #{}}
+        end
+    end);
+
+assert(Result, {json, StatusCode, JsonPath, Pred}) ->
+    {Parsed} = parse_json_path(JsonPath),
+    Title = deathtoll_formatter:format_ref(lists:last(Parsed)),
+    assert(Result, {json, StatusCode, Title, Parsed, Pred});
+
+assert({ok, StatusCode, _, CRef}, {json, StatusCode, Title, JsonPath, Pred}) ->
+    expect_body(CRef, fun (Body) ->
+        try
+            Json = jiffy:decode(Body, [return_maps]),
+            Value = get_json_value(parse_json_path(JsonPath), Json),
+            _ = run_predicate(Pred, Value),
+            {up, #{}}
+        catch
+            throw:{error, {_, _}} ->
+                {down, #{what => Title, why => <<"No json">>}};
+            throw:badpath ->
+                {down, #{what => Title, why => <<"No json value at path">>}};
+            throw:{failed, Why, ActualValue} ->
+                {down, #{what => Title, why => Why, value => ActualValue}}
+        end
+    end);
+
+assert({ok, StatusCode, _, _}, _) ->
+    {down, #{status => StatusCode}};
+
+assert({error, Reason}, _) ->
+    {down, #{error => Reason}}.
+
+expect_body(CRef, F) ->
+    case hackney:body(CRef) of
+        {ok, Body} ->
+            F(Body);
+        {error, Reason} ->
+            {down, #{error => Reason}}
+    end.
 
 -spec terminate(deathtoll:cref(), state()) -> ok.
 
@@ -113,14 +128,20 @@ terminate(_Ref, _State) ->
 
 %%
 
-get_json_value([], Value) ->
+parse_json_path({Path}) ->
+    Path;
+
+parse_json_path(Path) ->
+    {binary:split(iolist_to_binary(Path), <<$.>>, [global])}.
+
+get_json_value({[]}, Value) ->
     Value;
 
-get_json_value([Key | Rest], {Props}) when is_list(Props) ->
-    case lists:keyfind(Key, 1, Props) of
-        {_, Value} ->
-            get_json_value(Rest, Value);
-        false ->
+get_json_value({[Key | Rest]}, Props = #{}) ->
+    case maps:get(Key, Props, Ref = make_ref()) of
+        Value when Value =/= Ref ->
+            get_json_value({Rest}, Value);
+        Ref ->
             throw(badpath)
     end;
 
@@ -128,7 +149,7 @@ get_json_value(_Path, _Value) ->
     throw(badpath).
 
 run_predicate({contains, Subject}, Value) ->
-    Result = binary:match(Value, iolist_to_binary([Subject])),
+    Result = binary:match(Value, iolist_to_binary(Subject)),
     run_predicate_result(Result =/= nomatch, <<"No match">>, Value);
 
 run_predicate({compares, Comparers}, Value) ->
@@ -142,14 +163,9 @@ run_predicate_result(true, _Desc, _Value) ->
     ok;
 
 run_predicate_result(false, Desc, Value) ->
-    throw({failed, Desc, to_binary(Value)}).
+    throw({failed, Desc, genlib:to_binary(Value)}).
 
 compare({Comparer, Bound}, Value) ->
     try erlang:Comparer(Value, Bound) catch
         _:_ -> throw({failed, <<"Invalid predicate">>, Value})
     end.
-
-to_binary(V) when is_binary(V)  -> V;
-to_binary(V) when is_list(V)    -> iolist_to_binary(V);
-to_binary(V) when is_integer(V) -> integer_to_binary(V);
-to_binary(V) when is_float(V)   -> float_to_binary(V).
