@@ -132,14 +132,14 @@ handle_audit(Error, State = #state{ref = Ref, audit = undefined}) ->
     _ = error_logger:error_msg("~p: Audit failed to complete: ~p", [Ref, Error]),
     State.
 
-join_alarm({up, Extra}, {up, _WasExtra}, _State) ->
-    {ok, {up, Extra}};
+join_alarm({up, Extra}, {up, _WasExtra = #{since := Since}}, _State) ->
+    {ok, {up, Extra#{since => Since}}};
 
 join_alarm({up, Extra}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
     Seq = maps:get(seq, WasExtra, 0),
     if
         Seq >= MaxSeq ->
-            {trigger, {up, Extra}};
+            {trigger, {up, Extra#{since => calendar:universal_time()}}};
         true ->
             {ok, {up, Extra}}
     end;
