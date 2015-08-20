@@ -27,6 +27,7 @@
 -spec init(deathtoll:cref(), deathtoll:options()) -> {ok, state()}.
 
 init(_Ref, Options = #{from := From, to := To, smtp := SmtpOptions}) ->
+    _ = application:ensure_all_started(ssl),
     Me = maps:get(me, Options, "Deathtoll"),
     _ = is_email(From) orelse error({badarg, From}),
     _ = lists:all(fun is_email/1, To) orelse error({badarg, To}),
@@ -53,7 +54,7 @@ alarm(Ref, Alarm, State = #state{from = {From, Me}, to = To, opts = Options}) ->
         [],
         [
             {<<"text">>, <<"plain">>, [], [], Plain},
-            {<<"text">>, <<"html">>, [], [], Html}
+            {<<"text">>, <<"html">>, [{<<"Content-Transfer-Encoding">>,<<"quoted-printable">>}], [], Html}
         ]
     }),
     EMail = {From, To, Body},
