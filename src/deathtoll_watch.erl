@@ -26,6 +26,7 @@
     audit_sup :: pid(),
     timer :: reference(),
     alarmists :: [{module(), any()}],
+    strategy :: naive | transitive,
     intervals :: {pos_integer(), pos_integer()},
     max_seq :: pos_integer(),
     max_alarms :: pos_integer()
@@ -40,8 +41,8 @@
 start_link(Ref, Options) ->
     AuditSup = maps:get(sup, Options),
     Alarmists = maps:get(alarms, Options),
-    [Interval, MaxSeq, MaxAlarms] = genlib_map:mget(
-        [{interval, 60}, {max_seq, 3}, {max_alarms, 5}],
+    [Strategy, Interval, MaxSeq, MaxAlarms] = genlib_map:mget(
+        [{strategy, transitive}, {interval, 60}, {max_seq, 3}, {max_alarms, 5}],
         Options
     ),
     IntervalDown = maps:get(interval_down, Options, Interval),
@@ -49,6 +50,7 @@ start_link(Ref, Options) ->
         ref = Ref,
         alarm = {up, #{since => calendar:universal_time()}},
         alarmists = Alarmists,
+        strategy = Strategy,
         intervals = {Interval * 1000, IntervalDown * 1000},
         max_seq = MaxSeq,
         max_alarms = MaxAlarms,
@@ -120,7 +122,7 @@ start_audit(State = #state{ref = Ref, audit_sup = SupPid}) ->
 
 handle_audit({shutdown, {alarm, Alarm}}, State = #state{ref = Ref, audit = undefined, alarm = WasAlarm}) ->
     _ = error_logger:info_msg("~p: Audit completed: ~p", [Ref, Alarm]),
-    case join_alarm(Alarm, WasAlarm, State) of
+    case join_alarm(State#state.strategy, Alarm, WasAlarm, State) of
         {trigger, FinalAlarm} ->
             Alarmists = [deathtoll_alarmist:trigger(Ref, FinalAlarm, A) || A <- State#state.alarmists],
             State#state{alarm = FinalAlarm, alarmists = Alarmists};
@@ -132,10 +134,14 @@ handle_audit(Error, State = #state{ref = Ref, audit = undefined}) ->
     _ = error_logger:error_msg("~p: Audit failed to complete: ~p", [Ref, Error]),
     State.
 
-join_alarm({up, Extra}, {up, _WasExtra = #{since := Since}}, _State) ->
+join_alarm(naive, {State, Extra}, _WasAlarm, _State) ->
+    Result = case State of down -> trigger; up -> ok end,
+    {Result, {State, Extra#{since => calendar:universal_time()}}};
+
+join_alarm(transitive, {up, Extra}, {up, _WasExtra = #{since := Since}}, _State) ->
     {ok, {up, Extra#{since => Since}}};
 
-join_alarm({up, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
+join_alarm(transitive, {up, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
     Seq = maps:get(seq, WasExtra, 0),
     Extra = Extra0#{since => calendar:universal_time()},
     if
@@ -145,7 +151,7 @@ join_alarm({up, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
             {ok, {up, Extra}}
     end;
 
-join_alarm({down, Extra0}, {up, _WasExtra}, #state{max_seq = MaxSeq}) ->
+join_alarm(transitive, {down, Extra0}, {up, _WasExtra}, #state{max_seq = MaxSeq}) ->
     Extra = Extra0#{seq => 1, since => calendar:universal_time()},
     if
         MaxSeq =:= 1 ->
@@ -154,7 +160,7 @@ join_alarm({down, Extra0}, {up, _WasExtra}, #state{max_seq = MaxSeq}) ->
             {ok, {down, Extra#{n => 0}}}
     end;
 
-join_alarm({down, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq, max_alarms = MaxN}) ->
+join_alarm(transitive, {down, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq, max_alarms = MaxN}) ->
     #{n := N, seq := Seq0, since := Since} = WasExtra,
     Seq = Seq0 + 1,
     TriggerSeq = MaxSeq + trunc(math:pow(?EXPBASE, N)) - 1,

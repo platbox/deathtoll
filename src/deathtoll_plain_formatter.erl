@@ -8,10 +8,10 @@
 -spec format_alarm(deathtoll:cref(), deathtoll:alarm()) ->
     binary().
 
-format_alarm(Ref, Alarm = {down, #{since := Since, n := N}}) ->
+format_alarm(Ref, Alarm = {down, Extra = #{since := Since}}) ->
     Title = deathtoll_format:format_ref(Ref),
     Time = format_since(Since),
-    Infix = case N of
+    Infix = case maps:get(n, Extra, 1) of
         1 -> "went down at";
         _ -> "still down since"
     end,
