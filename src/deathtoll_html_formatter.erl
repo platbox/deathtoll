@@ -15,7 +15,7 @@
 format_alarm(Ref, Alarm = {State, Extra}, #{title := Title}) ->
     Content = {'body', [
         format_header(State),
-        {'article', [
+        {'div', #{'style' => "margin: 2em; color: #263238; line-height: 1.6em;"}, [
             {'h2', format_heading(State)},
             {'p' , format_manifest(State, Ref)},
             {'p' , format_info(State, Extra)},
@@ -25,9 +25,8 @@ format_alarm(Ref, Alarm = {State, Extra}, #{title := Title}) ->
     ]},
     Inject = #{
         body    => #{'style' => "-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; padding: 0; margin: 0; font-family: sans-serif;"},
-        article => #{'style' => "margin: 2em; color: #263238; line-height: 1.6em;"},
         h2      => #{'style' => "margin-top: 1.6em;"},
-        pre     => #{'style' => "background-color: #ECEFF1; padding: 1em; border-left: solid 0.5em #78909C; white-space: pre-wrap;"}
+        pre     => #{'style' => "background-color: #ECEFF1; padding: 1em; border-left: solid 0.5em #78909C; white-space: pre; overflow-x: scroll;"}
     },
     render(Title, Content, #{inject_attributes => Inject}).
 
