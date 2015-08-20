@@ -135,7 +135,7 @@ format(Alarm, {text, plain}) ->
     format_plain(Alarm);
 
 format(Alarm, {text, html}) ->
-    {pre, format_plain(Alarm)};
+    format_html(Alarm);
 
 format(Alarm, {application, json}) ->
     deathtoll_format:alarm_to_json(Alarm);
@@ -158,6 +158,43 @@ format_plain({up, Opts = #{what := _}}) ->
 format_plain({_, Opts = #{}}) ->
     Tpl = <<"Got response from {{&url}}{{#status}} with status {{&status}}{{/status}}{{#body}}: {{&body}}{{/body}}.">>,
     deathtoll_format:render_template(Tpl, Opts).
+
+format_html({down, _Opts = #{url := Url, error := Reason}}) ->
+    [
+        {p, ["Failed to request web resource at ", {a, #{href => Url}, Url}, ", the reason is:"]},
+        {pre, genlib:print(Reason, 4096)}
+    ];
+
+format_html({State, Opts = #{url := Url, what := What}}) ->
+    Which = case State of
+        up   -> "good";
+        down -> "bad"
+    end,
+    {Prefix, Value} = case maps:get(value, Opts, undefined) of
+        V when V /= undefined -> {", current value is:", [{pre, V}]};
+        undefined             -> {".", []}
+    end,
+    Why = case maps:get(why, Opts, undefined) of
+        W when W /= undefined -> [". ", W];
+        undefined             -> []
+    end,
+    [
+        {p, [
+            "Got a ", Which, " value for ", {strong, What},
+            " while requesting resource at ", {a, #{href => Url}, Url}, Why, Prefix
+        ]} | Value
+    ];
+
+format_html({_, Opts = #{url := Url}}) ->
+    Status = case maps:get(status, Opts, undefined) of
+        S when S /= undefined -> ["with status ", {strong, S}];
+        undefined             -> ["successfully"]
+    end,
+    {Prefix, Body} = case maps:get(body, Opts, undefined) of
+        B when B /= undefined -> {":", [{pre, B}]};
+        undefined             -> {".", []}
+    end,
+    [{p, ["Web resource at ", {a, #{href => Url}, Url}, " responded", Status, Prefix]} | Body].
 
 %%
 
