@@ -24,6 +24,7 @@
 
 -export([start_link/3]).
 -export([init/4]).
+-export([shoot/1]).
 -export([format/2]).
 
 -export_type([ctype/0]).
@@ -37,8 +38,16 @@ start_link(Module, State, Ref) ->
 
 init(Parent, Ref, Module, State) ->
     _ = proc_lib:init_ack(Parent, {ok, self()}),
+    _ = receive shoot -> ok after 5000 -> exit(orphaned) end,
     {alarm, {St, Opts}} = Module:start(Ref, State),
     exit({shutdown, {alarm, {St, Opts#{module => Module}}}}).
+
+-spec shoot(pid()) -> reference().
+
+shoot(Pid) ->
+    MonRef = monitor(process, Pid),
+    _ = Pid ! shoot,
+    MonRef.
 
 -spec format(deathtoll:alarm(), ctype()) -> term().
 

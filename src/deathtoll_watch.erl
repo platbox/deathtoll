@@ -113,8 +113,7 @@ handle_timeout(State = #state{ref = Ref}) ->
 start_audit(State = #state{ref = Ref, audit_sup = SupPid}) ->
     case supervisor:start_child(SupPid, [Ref]) of
         {ok, Pid} ->
-            MonRef = monitor(process, Pid),
-            State#state{audit = MonRef};
+            State#state{audit = deathtoll_auditor:shoot(Pid)};
         Error ->
             _ = error_logger:error_msg("~p: Audit failed to start: ~p", [Ref, Error]),
             State
