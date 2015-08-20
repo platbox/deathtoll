@@ -76,7 +76,7 @@ stop_child(Ref) ->
     Specs :: list(supervisor:child_spec()).
 
 init(deathtoll_sup) ->
-    WebSup = get_child_spec(web_sup, {{0, 0, 0, 0}, 8888, []}),
+    WebSup = get_child_spec(web_sup, {{0, 0, 0, 0}, 8888, [deathtoll_audit_inbox_handler]}),
     WatchSuperSup = get_child_spec(watch_supersup, {}),
     {ok, {{one_for_one, 1, 30}, [WatchSuperSup, WebSup]}};
 
