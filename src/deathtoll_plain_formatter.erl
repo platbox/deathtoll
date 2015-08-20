@@ -23,7 +23,7 @@ format_alarm(Ref, Alarm = {down, #{since := Since, n := N}}) ->
 format_alarm(Ref, Alarm = {up, _}) ->
     genlib:format(
         "Seems that ~s went back up, cheers! ~s",
-        [deathtoll_format:format_ref(Ref), deathtoll_auditor:format(Alarm)]
+        [deathtoll_format:format_ref(Ref), deathtoll_auditor:format(Alarm, {text, plain})]
     ).
 
 format_since(Datetime) ->
