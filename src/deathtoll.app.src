@@ -5,7 +5,10 @@
     {applications, [
         kernel,
         stdlib,
-        sasl
+        sasl,
+        bbmustache,
+        jiffy,
+        cowboy
     ]},
     {mod, {deathtoll_app, []}},
     {env, []}

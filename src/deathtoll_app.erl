@@ -52,7 +52,7 @@ stop(_State) ->
 -spec start_link() -> {ok, pid()} | {error, term()}.
 
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    supervisor:start_link(?MODULE, deathtoll_sup).
 
 -spec start_child(deathtoll:cref(), deathtoll:options()) -> {ok, pid()} | {error, {already_started, pid()} | any()}.
 
@@ -71,14 +71,33 @@ stop_child(Ref) ->
 
 %%
 
--spec init([]) -> {ok, {Strategy, Specs}} when
+-spec init(_) -> {ok, {Strategy, Specs}} when
     Strategy :: {supervisor:strategy(), non_neg_integer(), non_neg_integer()},
     Specs :: list(supervisor:child_spec()).
 
-init([]) ->
-    Watches = genlib_opts:get(watch, application:get_all_env(), []),
-    {ok, {{one_for_one, 6, 30}, [get_child_spec(Ref, Options) || {Ref, Options} <- Watches]}}.
+init(deathtoll_sup) ->
+    WebSup = get_child_spec(web_sup, {{0, 0, 0, 0}, 8888, []}),
+    WatchSuperSup = get_child_spec(watch_supersup, {}),
+    {ok, {{one_for_one, 1, 30}, [WatchSuperSup, WebSup]}};
 
-get_child_spec(Ref, Options) ->
+init(watch_supersup) ->
+    Watches = genlib_opts:get(watch, application:get_all_env(), []),
+    {ok, {{one_for_one, 6, 30}, [get_child_spec(watch, Watch) || Watch = {_, _} <- Watches]}}.
+
+%%
+
+get_child_spec(watch_supersup, _) ->
+    {watch_supersup, {supervisor, start_link, [{local, ?MODULE}, ?MODULE, watch_supersup]},
+        permanent, infinity, supervisor, [?MODULE]};
+
+get_child_spec(web_sup, {IP, Port, Modules}) ->
+    Routes = lists:flatmap(fun (M) -> M:routes() end, Modules),
+    ranch:child_spec(
+        ?MODULE, 8,
+        ranch_tcp, [{ip, IP}, {port, Port}],
+        cowboy_protocol, [{env, [{dispatch, cowboy_router:compile([{'_', Routes}])}]}]
+    );
+
+get_child_spec(watch, {Ref, Options}) ->
     {Ref, {deathtoll_watch_sup, start_link, [Options#{ref => Ref}]},
         permanent, infinity, supervisor, [deathtoll_watch_sup]}.
