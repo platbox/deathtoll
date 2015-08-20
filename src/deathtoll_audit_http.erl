@@ -194,7 +194,7 @@ format_html({_, Opts = #{url := Url}}) ->
         B when B /= undefined -> {":", [{pre, B}]};
         undefined             -> {".", []}
     end,
-    [{p, ["Web resource at ", {a, #{href => Url}, Url}, " responded", Status, Prefix]} | Body].
+    [{p, ["Web resource at ", {a, #{href => Url}, Url}, " responded ", Status, Prefix]} | Body].
 
 %%
 

@@ -18,8 +18,7 @@
 -record(state, {
     to :: [email_address()],
     from :: {email_address(), string()},
-    opts :: list(),
-    alarm :: undefined | deathtoll:alarm()
+    opts :: list()
 }).
 
 -type state() :: #state{}.
@@ -40,18 +39,32 @@ init(_Ref, Options = #{from := From, to := To, smtp := SmtpOptions}) ->
 
 -spec alarm(deathtoll:cref(), deathtoll:alarm(), state()) -> {ok, state()}.
 
-alarm(Ref, Alarm, State = #state{from = {From, Me}, to = To, opts = Options, alarm = WasAlarm}) ->
-    Text = deathtoll_formatter:format_alarm(Ref, Alarm, WasAlarm),
-    Body = [
-        "Subject: ", deathtoll_format:format_ref(Ref), "\r\n",
-        "From: ", Me, " <", From, ">\r\n",
-        "To: ", genlib_string:join(", ", To), "\r\n"
-        "\r\n",
-        Text
+alarm(Ref, Alarm, State = #state{from = {From, Me}, to = To, opts = Options}) ->
+    Plain = deathtoll_plain_formatter:format_alarm(Ref, Alarm),
+    Html = deathtoll_html_formatter:format_alarm(Ref, Alarm, #{title => "Deathtoll"}),
+    Headers = [
+        {<<"Subject">> , iolist_to_binary([deathtoll_format:format_ref(Ref), " is dead"])},
+        {<<"From">>    , format_email_list([{Me, From}])},
+        {<<"To">>      , format_email_list(To)}
     ],
+    Body = mimemail:encode({
+        <<"multipart">>, <<"alternative">>,
+        Headers,
+        [],
+        [
+            {<<"text">>, <<"plain">>, [], [], Plain},
+            {<<"text">>, <<"html">>, [], [], Html}
+        ]
+    }),
     EMail = {From, To, Body},
     _Pid = gen_smtp_client:send(EMail, Options, fun report/1),
-    {ok, State#state{alarm = Alarm}}.
+    {ok, State}.
+
+format_email_list(EMails) ->
+    smtp_util:combine_rfc822_addresses(lists:map(
+        fun (E = {_, _}) -> E; (E) -> {undefined, E} end,
+        EMails
+    )).
 
 report({ok, Receipt}) ->
     error_logger:info_msg("Mail sent: ~p", [Receipt]);
