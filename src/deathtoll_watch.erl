@@ -47,7 +47,7 @@ start_link(Ref, Options) ->
     IntervalDown = maps:get(interval_down, Options, Interval),
     gen_server:start_link(?MODULE, #state{
         ref = Ref,
-        alarm = {up, []},
+        alarm = {up, #{since => calendar:universal_time()}},
         alarmists = Alarmists,
         intervals = {Interval * 1000, IntervalDown * 1000},
         max_seq = MaxSeq,
@@ -135,11 +135,12 @@ handle_audit(Error, State = #state{ref = Ref, audit = undefined}) ->
 join_alarm({up, Extra}, {up, _WasExtra = #{since := Since}}, _State) ->
     {ok, {up, Extra#{since => Since}}};
 
-join_alarm({up, Extra}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
+join_alarm({up, Extra0}, {down, WasExtra}, #state{max_seq = MaxSeq}) ->
     Seq = maps:get(seq, WasExtra, 0),
+    Extra = Extra0#{since => calendar:universal_time()},
     if
         Seq >= MaxSeq ->
-            {trigger, {up, Extra#{since => calendar:universal_time()}}};
+            {trigger, {up, Extra}};
         true ->
             {ok, {up, Extra}}
     end;
