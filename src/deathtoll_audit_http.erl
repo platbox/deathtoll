@@ -87,8 +87,8 @@ assert({ok, StatusCode, _, CRef}, {response, StatusCode, BodyMatch}) ->
     end);
 
 assert(Result, {json, StatusCode, JsonPath, Pred}) ->
-    {Parsed} = parse_json_path(JsonPath),
-    Title = deathtoll_format:format_ref(lists:last(Parsed)),
+    Parsed = {Fragments} = parse_json_path(JsonPath),
+    Title = deathtoll_format:format_ref(lists:last(Fragments)),
     assert(Result, {json, StatusCode, Title, Parsed, Pred});
 
 assert({ok, StatusCode, _, CRef}, {json, StatusCode, Title, JsonPath, Pred}) ->
@@ -198,7 +198,7 @@ format_html({_, Opts = #{url := Url}}) ->
 
 %%
 
-parse_json_path({Path}) ->
+parse_json_path(Path = {_}) ->
     Path;
 
 parse_json_path(Path) ->
@@ -233,7 +233,7 @@ run_predicate_result(true, _Desc, _Value) ->
     ok;
 
 run_predicate_result(false, Desc, Value) ->
-    throw({failed, Desc, genlib:to_binary(Value)}).
+    throw({failed, Desc, Value}).
 
 compare({Comparer, Bound}, Value) ->
     try erlang:Comparer(Value, Bound) catch
