@@ -7,7 +7,8 @@
 -export([
     init/2,
     start/2,
-    terminate/2
+    terminate/2,
+    format/2
 ]).
 
 %%
@@ -61,19 +62,19 @@ start(_Ref, #state{url = Url, body = Body, ctype = CType, expect = Expect, timeo
         {timeout, Timeout},
         {connect_timeout, Timeout}
     ],
-    Result = if
+    {State, Opts} = if
         Body =:= <<>>; Body =:= "" ->
             assert(hackney:get(Url, Headers0, <<>>, Options), Expect);
         true ->
             assert(hackney:post(Url, Headers1, Body, Options), Expect)
     end,
-    {alarm, Result}.
+    {alarm, {State, Opts#{url => Url}}}.
 
 assert({ok, _, _, _}, ok) ->
     {up, #{}};
 
 assert({ok, StatusCode, _, _}, {status, StatusCode}) ->
-    {up, #{}};
+    {up, #{status => StatusCode}};
 
 assert({ok, StatusCode, _, CRef}, {response, StatusCode, BodyMatch}) ->
     expect_body(CRef, fun (Body) ->
@@ -81,13 +82,13 @@ assert({ok, StatusCode, _, CRef}, {response, StatusCode, BodyMatch}) ->
             nomatch ->
                 {down, #{status => StatusCode, body => Body}};
             _ ->
-                {up, #{}}
+                {up, #{status => StatusCode, body => Body}}
         end
     end);
 
 assert(Result, {json, StatusCode, JsonPath, Pred}) ->
     {Parsed} = parse_json_path(JsonPath),
-    Title = deathtoll_formatter:format_ref(lists:last(Parsed)),
+    Title = deathtoll_format:format_ref(lists:last(Parsed)),
     assert(Result, {json, StatusCode, Title, Parsed, Pred});
 
 assert({ok, StatusCode, _, CRef}, {json, StatusCode, Title, JsonPath, Pred}) ->
@@ -96,7 +97,7 @@ assert({ok, StatusCode, _, CRef}, {json, StatusCode, Title, JsonPath, Pred}) ->
             Json = jiffy:decode(Body, [return_maps]),
             Value = get_json_value(parse_json_path(JsonPath), Json),
             _ = run_predicate(Pred, Value),
-            {up, #{}}
+            {up, #{what => Title, value => Value}}
         catch
             throw:{error, {_, _}} ->
                 {down, #{what => Title, why => <<"No json">>}};
@@ -125,6 +126,38 @@ expect_body(CRef, F) ->
 
 terminate(_Ref, _State) ->
     ok.
+
+%%
+
+-spec format(deathtoll:alarm(), deathtoll_auditor:ctype()) -> term().
+
+format(Alarm, {text, plain}) ->
+    format_plain(Alarm);
+
+format(Alarm, {text, html}) ->
+    {pre, format_plain(Alarm)};
+
+format(Alarm, {application, json}) ->
+    deathtoll_format:alarm_to_json(Alarm);
+
+format(Alarm, _CType) ->
+    format(Alarm, {text, plain}).
+
+format_plain({down, _Opts = #{url := Url, error := Reason}}) ->
+    Tpl = <<"Failed to access {{&url}}: {{&reason}}.">>,
+    deathtoll_format:render_template(Tpl, #{url => Url, reason => genlib:print(Reason, 120)});
+
+format_plain({down, Opts = #{what := _, why := _}}) ->
+    Tpl = <<"Bad value for {{&what}}. {{&why}}{{#value}}, it's {{&value}}{{/value}}.">>,
+    deathtoll_format:render_template(Tpl, Opts);
+
+format_plain({up, Opts = #{what := _}}) ->
+    Tpl = "Good value for {{&what}}{{#value}}, it's {{&value}}{{/value}}.",
+    deathtoll_format:render_template(Tpl, Opts);
+
+format_plain({_, Opts = #{}}) ->
+    Tpl = <<"Got response from {{&url}}{{#status}} with status {{&status}}{{/status}}{{#body}}: {{&body}}{{/body}}.">>,
+    deathtoll_format:render_template(Tpl, Opts).
 
 %%
 

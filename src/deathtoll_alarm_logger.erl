@@ -10,18 +10,18 @@
     terminate/2
 ]).
 
--type state() :: {undefined | deathtoll:alarm(), module()}.
+-type state() :: undefined | deathtoll:alarm().
 
 -spec init(deathtoll:cref(), deathtoll:options()) -> {ok, state()}.
 
-init(_Ref, Options) ->
-    {ok, {undefined, maps:get(formatter, Options, deathtoll_formatter)}}.
+init(_Ref, _Options) ->
+    {ok, undefined}.
 
 -spec alarm(deathtoll:cref(), deathtoll:alarm(), state()) -> {ok, state()}.
 
-alarm(Ref, Alarm, {WasAlarm, Formatter}) ->
-    _ = error_logger:error_msg(Formatter:format_alarm(Ref, Alarm, WasAlarm)),
-    {ok, {Alarm, Formatter}}.
+alarm(Ref, Alarm, WasAlarm) ->
+    _ = error_logger:error_msg(deathtoll_formatter:format_alarm(Ref, Alarm, WasAlarm)),
+    {ok, Alarm}.
 
 -spec terminate(deathtoll:cref(), state()) -> ok.
 

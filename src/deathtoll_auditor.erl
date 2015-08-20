@@ -4,6 +4,9 @@
 -module(deathtoll_auditor).
 
 -type state() :: any().
+-type ctype() ::
+    {text, plain | html} |
+    {application, json}.
 
 -callback init(deathtoll:cref(), deathtoll:options()) ->
     {ok, state()}.
@@ -14,10 +17,16 @@
 -callback terminate(deathtoll:cref(), state()) ->
     ok.
 
+-callback format(deathtoll:alarm(), ctype()) ->
+    term().
+
 %%
 
 -export([start_link/3]).
 -export([init/4]).
+-export([format/2]).
+
+-export_type([ctype/0]).
 
 -spec start_link(module(), state(), deathtoll:cref()) -> {ok, pid()}.
 
@@ -28,5 +37,10 @@ start_link(Module, State, Ref) ->
 
 init(Parent, Ref, Module, State) ->
     _ = proc_lib:init_ack(Parent, {ok, self()}),
-    Alarm = Module:start(Ref, State),
-    exit({shutdown, Alarm}).
+    {alarm, {St, Opts}} = Module:start(Ref, State),
+    exit({shutdown, {alarm, {St, Opts#{module => Module}}}}).
+
+-spec format(deathtoll:alarm(), ctype()) -> term().
+
+format(Alarm = {_, #{module := Module}}, CType) ->
+    Module:format(Alarm, CType).

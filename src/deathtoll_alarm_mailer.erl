@@ -19,8 +19,7 @@
     to :: [email_address()],
     from :: {email_address(), string()},
     opts :: list(),
-    alarm :: undefined | deathtoll:alarm(),
-    formatter :: module()
+    alarm :: undefined | deathtoll:alarm()
 }).
 
 -type state() :: #state{}.
@@ -30,25 +29,26 @@
 
 init(_Ref, Options = #{from := From, to := To, smtp := SmtpOptions}) ->
     Me = maps:get(me, Options, "Deathtoll"),
-    Formatter = maps:get(formatter, Options, deathtoll_formatter),
     _ = is_email(From) orelse error({badarg, From}),
     _ = lists:all(fun is_email/1, To) orelse error({badarg, To}),
     State = #state{
         to = To,
         from = {From, Me},
-        opts = SmtpOptions,
-        formatter = Formatter
+        opts = SmtpOptions
     },
     {ok, State}.
 
 -spec alarm(deathtoll:cref(), deathtoll:alarm(), state()) -> {ok, state()}.
 
 alarm(Ref, Alarm, State = #state{from = {From, Me}, to = To, opts = Options, alarm = WasAlarm}) ->
-    Formatter = State#state.formatter,
-    Text = Formatter:format_alarm(Ref, Alarm, WasAlarm),
-    Body =
-        "Subject: " ++ Formatter:format_ref(Ref) ++ "\r\n"
-        "From: " ++ Me ++ "\r\n\r\n" ++ Text,
+    Text = deathtoll_formatter:format_alarm(Ref, Alarm, WasAlarm),
+    Body = [
+        "Subject: ", deathtoll_format:format_ref(Ref), "\r\n",
+        "From: ", Me, " <", From, ">\r\n",
+        "To: ", genlib_string:join(", ", To), "\r\n"
+        "\r\n",
+        Text
+    ],
     EMail = {From, To, Body},
     _Pid = gen_smtp_client:send(EMail, Options, fun report/1),
     {ok, State#state{alarm = Alarm}}.
